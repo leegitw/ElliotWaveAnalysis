@@ -1,10 +1,9 @@
 import pandas as pd
 from Error import *
 import datetime as dt
-import copy
 import configparser
 
-import plotly.plotly  as py
+import chart_studio.plotly  as py
 import plotly.offline as offline
 import plotly.graph_objs as go
 DT_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -13,19 +12,30 @@ DT_FORMAT = "%Y-%m-%d %H:%M:%S"
 class Elliot_Analyzer:
     DEBUG = False
 
-    def __init__(self, currency_name, swing_file, OHLC_data_file, config_file="AnalyzerConfig.conf"):
+    def __init__(self, currency_name, swing_file, OHLC_datafame, config_file="AnalyzerConfig.conf"):
         #read in configFile
         self.config = configparser.ConfigParser()
         self.config.read(config_file)
 
+        self.OHLC_datafame = OHLC_datafame[['Date_Time', 'Open', 'High', 'Low', 'Close']]
+
         self.swing_data = pd.read_csv(swing_file, names=['Date_Time', 'Price', 'Pos', 'Row']).tail(9)
         self.swing_data['Date_Time'] = pd.to_datetime(self.swing_data['Date_Time'], format=DT_FORMAT)
+        self.swing_data['Date_Time']  = self.swing_data['Date_Time'].dt.tz_localize(None)
+        #self.swing_data['Date_Time']  = self.swing_data['Date_Time'].astype('datetime64[s]')
 
         if self.DEBUG: print("All the Swing Data")
         if self.DEBUG: print(self.swing_data)
+
+        if len(self.swing_data) == 0 :
+            return
+
         last_swing_row = self.swing_data.iloc[0]["Row"]
-        self.OHLC_data = pd.read_csv(OHLC_data_file, names=['Date_Time', 'Open', 'High', 'Low', 'Close'], skiprows=last_swing_row)
+
+        self.OHLC_data = self.OHLC_datafame[last_swing_row:].copy()
         self.OHLC_data['Date_Time'] = pd.to_datetime(self.OHLC_data['Date_Time'], format=DT_FORMAT)
+        self.OHLC_data['Date_Time']  = self.OHLC_data['Date_Time'].dt.tz_localize(None)
+        #self.OHLC_data['Date_Time']  = self.OHLC_data['Date_Time'].astype('datetime64[s]')
         self.OHLC_data = self.OHLC_data.set_index('Date_Time')
 
         # self.OHLC_data = self.OHLC_data.truncate(before=self.swing_data.iloc[0]['Date_Time'])
@@ -345,7 +355,7 @@ class Elliot_Analyzer:
     def export_graphs(self, output_path):
         for key,value in self.wave_data.items():
             my_swing_data = value[0]
-            print("My Swing Data:", my_swing_data)
+            #print("My Swing Data:", my_swing_data)
 
             lables = []
             if key == "WaveC":

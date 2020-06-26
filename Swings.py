@@ -5,7 +5,7 @@ import csv
 from Error import *
 import numpy as np
 
-import plotly.plotly  as py
+import chart_studio.plotly  as py
 import plotly.offline as offline
 import plotly.graph_objs as go
 from datetime import datetime
@@ -17,10 +17,11 @@ DT_FORMAT = "%Y-%m-%d %H:%M:%S"
 class Swing_Generator:
     DEBUG = False
 
-    def __init__(self, data_file, swing_file, config_data):
+    def __init__(self, df, swing_file, config_data):
         self.swing_file = swing_file
         self.swing_writer = None
-        self.data_file = data_file
+        self.dataframe = df[['Date_Time', 'Open', 'High', 'Low', 'Close']].copy()
+        self.OHLC_data = self.dataframe.copy()
         self.ref_column = "NA"
         self.ATR_period = 0
         self.time_factor = -1
@@ -48,8 +49,9 @@ class Swing_Generator:
             raise ValueError("One or more required attributes not found in configuration file: " + configfile)
 
     def generate_swings(self):
-        self.OHLC_data = pd.read_csv(self.data_file, names=['Date_Time', 'Open', 'High', 'Low', 'Close'])
         self.OHLC_data['Date_Time'] = pd.to_datetime(self.OHLC_data['Date_Time'], format=DT_FORMAT)
+        self.OHLC_data['Date_Time']  = self.OHLC_data['Date_Time'].dt.tz_localize(None)
+        #self.OHLC_data['Date_Time']  = self.OHLC_data['Date_Time'].astype('datetime64[s]')
         self.OHLC_data = self.OHLC_data.set_index('Date_Time', drop=False)
         self.OHLC_data = self.Average_True_Range(self.OHLC_data, self.ATR_period)
 
@@ -123,15 +125,18 @@ class Swing_Generator:
         last_reg = Swing_Line(date_time=data_tup[0], pos=data_tup[2], row=int(data_tup[3]))
 
         # Read in only necessary OHLC data
-        self.OHLC_data = pd.read_csv(self.data_file, names=['Date_Time', 'Open', 'High', 'Low', 'Close'], skiprows=(last_swing.row - self.ATR_period))
+        self.OHLC_data = self.dataframe.copy()[(last_swing.row - self.ATR_period):]
         self.OHLC_data['Date_Time'] = pd.to_datetime(self.OHLC_data['Date_Time'], format=DT_FORMAT)
+        self.OHLC_data['Date_Time']  = self.OHLC_data['Date_Time'].dt.tz_localize(None)
+        #self.OHLC_data['Date_Time']  = self.OHLC_data['Date_Time'].astype('datetime64[s]')
         self.OHLC_data = self.OHLC_data.set_index('Date_Time', drop=False)
         self.OHLC_data = self.Average_True_Range(self.OHLC_data, self.ATR_period)
 
         # Set swing_point and reg_point
-        datetime_swing = datetime.strptime(last_swing.date_time, DT_FORMAT)
+        datetime_swing = datetime.strptime(last_swing.date_time.split("+")[0], DT_FORMAT)
+
         swing_point = Pivot_Point(self.OHLC_data.loc[datetime_swing], int(last_swing.row), last_swing.pos)
-        datetime_reg = datetime.strptime(last_reg.date_time, DT_FORMAT)
+        datetime_reg = datetime.strptime(last_reg.date_time.split("+")[0], DT_FORMAT)
         reg_point = Pivot_Point(self.OHLC_data.loc[datetime_reg], int(last_reg.row), last_reg.pos)
 
         # Check for any update at all.
